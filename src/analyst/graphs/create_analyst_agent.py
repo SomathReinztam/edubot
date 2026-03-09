@@ -16,8 +16,8 @@ from src.utils.logging_config import get_logger
 logger_analyst = get_logger(module_name="deep_queries", DIR="graph") # thinking_react
 logger_querier = get_logger(module_name="thinking_react", DIR="graph")
 
-def create_analyst_agent(llm_analyst : BaseChatModel, llm_querier : BaseChatModel, llm_halting : BaseChatModel, engine : Engine) -> CompiledStateGraph:
-    toolkit = PostgresToolKit(engine=engine)
+def create_analyst_agent(llm_analyst : BaseChatModel, llm_querier : BaseChatModel, llm_halting : BaseChatModel, engine : Engine, top_n : int = 15) -> CompiledStateGraph:
+    toolkit = PostgresToolKit(engine=engine, top_n=top_n)
     tools = toolkit.get_tools()
 
     llm_querier_with_tools = llm_querier.bind_tools(tools)
@@ -65,7 +65,7 @@ def create_analyst_agent(llm_analyst : BaseChatModel, llm_querier : BaseChatMode
         
         messages_ReAct = state["messages_ReAct"] # Aqui supongo que ya se reinico el estado messages_ReAct; es una lista vacia
         logger_querier.info(f"len messages_ReAct: {len(messages_ReAct)}")
-        messages_ReAct.append(SystemMessage(content=SQL_AGENT_SYSTEM_PROMPT_3))
+        messages_ReAct.append(SystemMessage(content=SQL_AGENT_SYSTEM_PROMPT_3.format(top_n=top_n)))
 
         ai_message = state["messages_analyst"][-1] # Esto es una query en lenguaje natural a una db
         analyst_message = HumanMessage(content=ai_message.content)
@@ -229,22 +229,20 @@ def create_analyst_agent(llm_analyst : BaseChatModel, llm_querier : BaseChatMode
 if __name__ == "__main__":
 
     from src.analyst.prompts import analyst
+    from src.analyst.prompts.edubotdb import DB_SKILL_1
     from langchain_core.messages import SystemMessage, HumanMessage
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_groq import ChatGroq
     from sqlalchemy import create_engine
     from src.utils import settings
     from src.utils.logging_config import setup_base_logging
+    from pathlib import Path
 
     setup_base_logging()
 
-    db_user = "postgres"
-    db_pass = "postgres"
-    db_host = "localhost"
-    db_port = "5434"
-    db_name = "northwind"
 
-    conn_string = f"postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
+
+    conn_string = f"postgresql+psycopg2://{settings.EDUBOTDB_USER}:{settings.EDUBOTDB_PASS}@{settings.EDUBOTDB_HOST}:{settings.EDUBOTDB_PORT}/{settings.EDUBOTDB_NAME}"
     engine = create_engine(conn_string)
 
     model = "gemini-2.0-flash"
@@ -256,20 +254,17 @@ if __name__ == "__main__":
     model = "openai/gpt-oss-120b"
     llm_halting = ChatGroq(model=model, temperature=0.1, api_key=settings.GROQ_API_KEY)
 
-    analyst_agent = create_analyst_agent(llm_analyst=llm_analyst, llm_querier=llm_querier, llm_halting=llm_halting, engine=engine)
+    analyst_agent = create_analyst_agent(llm_analyst=llm_analyst, llm_querier=llm_querier, llm_halting=llm_halting, engine=engine, top_n=25)
 
     # image_data = analyst_agent.get_graph().draw_mermaid_png()
     # with open("analyst.png", "wb") as image_file:
     #     image_file.write(image_data)
 
 
-    path = settings.ROOT / "test" / "graphs_states" / "analyst" / "plan.md"
-    with open(path, 'r', encoding='utf-8') as f:
-        plan = f.read()
     
-    topic = "ventas, clientes y empleados"
+    topic = "Cual es el estado de los proyectos en fase de construccion, y si vamos a alcanzar a tenerlo listo antes de los tiempos previstos ?"
     messages = [
-        SystemMessage(content=analyst.SYSTEM_DEEP_QUERIES_PROMPT_3.format(topic=topic, plan=plan)),
+        SystemMessage(content=analyst.SYSTEM_DEEP_QUERIES_PROMPT_3.format(topic=topic, plan=DB_SKILL_1)),
         HumanMessage(content=analyst.HUMAN_DEEP_QUERIES_PROMPT_2.format(topic=topic))
     ]
 
@@ -289,7 +284,8 @@ if __name__ == "__main__":
             doc += "\n\n --- \n\n"
     analysis = doc
 
-    path = settings.ROOT / "test" / "graphs_states" / "analyst" / "analysis.md"
+    path = settings.ROOT / "test" / "graphs_states" / "analysis.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
         f.write(analysis)
 
