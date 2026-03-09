@@ -8,6 +8,12 @@ from src.database import models
 from src.utils import settings
 
 from src.database.crud import schema 
+from src.analyst.graphs.create_analyst_agent import create_analyst_agent
+
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import SystemMessage, HumanMessage
+from src.analyst.prompts import analyst
+from src.analyst.prompts.edubotdb import DB_SKILL_1
 
 
 
@@ -61,9 +67,62 @@ class CrudHelper:
                     session.flush()
     
 
-    def make_analysis(self, user_id : int, model_analyst : schema.ModelProvider, model_querier : schema.ModelProvider, model_halting : schema.ModelProvider, query : str) -> str:
-         pass
+    def _get_langchain_model(self, model_provider : schema.ModelProvider) -> BaseChatModel:
+         client = model_provider["client"]
+
+         if client == "google":
+              from langchain_google_genai import ChatGoogleGenerativeAI
+              chat_model = ChatGoogleGenerativeAI(model=model_provider["model"], temperature=model_provider["temperature"], google_api_key=model_provider["api_key"])
+              return chat_model
+         if client == "groq":
+              from langchain_groq import ChatGroq
+              chat_model = ChatGroq(model=model_provider["model"], temperature=model_provider["temperature"], api_key=model_provider["api_key"])
+              return chat_model
+         if client == "deepseek":
+              from langchain_deepseek import ChatDeepSeek
+              chat_model = ChatDeepSeek(model=model_provider["model"], temperature=model_provider["temperature"], api_key=model_provider["api_key"])
+              return chat_model
     
+
+
+
+    def make_edubot_analysis(self, user_id : int, model_analyst : schema.ModelProvider, model_querier : schema.ModelProvider, model_halting : schema.ModelProvider, query : str, top_n : int) -> str:
+
+        conn_string = f"postgresql+psycopg2://{settings.EDUBOTDB_USER}:{settings.EDUBOTDB_PASS}@{settings.EDUBOTDB_HOST}:{settings.EDUBOTDB_PORT}/{settings.EDUBOTDB_NAME}"
+        engine = create_engine(conn_string)
+        
+        llm_analyst = self._get_langchain_model(model_provider=model_analyst)
+        llm_querier = self._get_langchain_model(model_provider=model_querier)
+        llm_halting = self._get_langchain_model(model_provider=model_halting)
+
+        messages = [
+            SystemMessage(content=analyst.SYSTEM_DEEP_QUERIES_PROMPT_3.format(topic=query, plan=DB_SKILL_1)),
+            HumanMessage(content=analyst.HUMAN_DEEP_QUERIES_PROMPT_2.format(topic=query))
+        ]
+
+        analyst_agent = create_analyst_agent(llm_analyst=llm_analyst, llm_querier=llm_querier, llm_halting=llm_halting, engine=engine, top_n=top_n)
+
+        initial_state = {'messages_analyst':messages}
+        agent_response = analyst_agent.invoke(initial_state)
+        messages_analyst = agent_response['messages_analyst']
+        analysis = messages_analyst[-1]
+        analysis = analysis.content
+
+        with self.session_scope() as session:
+             analyst_db = models.AnalysisModel(
+                  user_id=user_id,
+                  query=query,
+                  analysis=analysis
+             )
+             session.add(analyst_db)
+             session.flush()
+
+
+        return {"analysis":analysis}
+
+
+
+
 
     
 
