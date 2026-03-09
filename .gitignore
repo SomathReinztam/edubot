@@ -1,0 +1,15 @@
+.venv/
+_docs/
+__pycache__/
+.vols/
+.logs/
+.ruff_cache
+data/
+
+.env
+.txt
+z.txt
+z2.txt
+z1.py
+z2.py
+z3.py
