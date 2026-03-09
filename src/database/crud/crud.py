@@ -99,11 +99,45 @@ class CrudHelper:
 
 
 
-    def make_edubot_analysis(self, user_id : int, model_analyst : schema.ModelProvider, model_querier : schema.ModelProvider, model_halting : schema.ModelProvider, query : str, top_n : int) -> str:
+    def make_edubot_analysis(self, user_id: int, model_analyst: schema.ModelProvider, model_querier: schema.ModelProvider, model_halting: schema.ModelProvider, query: str, top_n: int) -> Dict:
+        result = None
+        for event in self.iter_edubot_analysis_events(
+            user_id=user_id,
+            model_analyst=model_analyst,
+            model_querier=model_querier,
+            model_halting=model_halting,
+            query=query,
+            top_n=top_n,
+        ):
+            if event["type"] == "complete":
+                result = event["data"]
+        return result
 
+    def _extract_messages(self, msgs) -> list:
+        from langchain_core.messages import RemoveMessage
+        if not isinstance(msgs, list):
+            msgs = [msgs]
+        result = []
+        for msg in msgs:
+            if isinstance(msg, RemoveMessage):
+                continue
+            data = {"type": type(msg).__name__, "content": msg.content}
+            tool_calls = getattr(msg, "tool_calls", None)
+            if tool_calls:
+                data["tool_calls"] = [
+                    {"name": tc["name"], "args": str(tc["args"])[:300]}
+                    for tc in tool_calls
+                ]
+            name = getattr(msg, "name", None)
+            if name:
+                data["tool_name"] = name
+            result.append(data)
+        return result
+
+    def iter_edubot_analysis_events(self, user_id: int, model_analyst, model_querier, model_halting, query: str, top_n: int):
         conn_string = f"postgresql+psycopg2://{settings.EDUBOTDB_USER}:{settings.EDUBOTDB_PASS}@{settings.EDUBOTDB_HOST}:{settings.EDUBOTDB_PORT}/{settings.EDUBOTDB_NAME}"
         engine = create_engine(conn_string)
-        
+
         llm_analyst = self._get_langchain_model(model_provider=model_analyst)
         llm_querier = self._get_langchain_model(model_provider=model_querier)
         llm_halting = self._get_langchain_model(model_provider=model_halting)
@@ -113,29 +147,66 @@ class CrudHelper:
             HumanMessage(content=analyst.HUMAN_DEEP_QUERIES_PROMPT_2.format(topic=query))
         ]
 
-        analyst_agent = create_analyst_agent(llm_analyst=llm_analyst, llm_querier=llm_querier, llm_halting=llm_halting, engine=engine, top_n=top_n)
+        agent = create_analyst_agent(llm_analyst=llm_analyst, llm_querier=llm_querier, llm_halting=llm_halting, engine=engine, top_n=top_n)
 
-        initial_state = {'messages_analyst':messages}
-        agent_response = analyst_agent.invoke(initial_state)
-        messages_analyst = agent_response['messages_analyst']
-        analysis = messages_analyst[-1]
-        analysis = analysis.content
+        NODE_LABELS = {
+            "initial_deep_query_node": "Analista — consulta inicial",
+            "set_ReAct_messages_node": "Preparando agente SQL",
+            "querier_ReAct_node": "Agente SQL procesando",
+            "tool_node_wrapper": "Ejecutando herramienta SQL",
+            "clear_ReAct_messages_node": "Enviando resultado al analista",
+            "deep_query_node": "Analista — analizando respuesta",
+            "should_end_node": "¿Análisis completo?",
+        }
 
-        with self.session_scope() as session:
-            analyst_db = models.AnalysisModel(
-                user_id=user_id,
-                query=query,
-                analysis=analysis
-            )
-            session.add(analyst_db)
-            session.flush()
-            session.refresh(analyst_db)
-            return {
-                "analysis_id": analyst_db.analysis_id,
-                "query": analyst_db.query,
-                "analysis": analyst_db.analysis,
-                "created_at": str(analyst_db.created_at),
-            }
+        final_content = None
+
+        for chunk in agent.stream({"messages_analyst": messages}):
+            for node_name, state_update in chunk.items():
+                data = {}
+
+                if "input_tokens" in state_update:
+                    data["input_tokens"] = state_update["input_tokens"]
+                    data["output_tokens"] = state_update.get("output_tokens", 0)
+                    data["api_calls"] = state_update.get("api_calls", 0)
+
+                if "messages_analyst" in state_update:
+                    msgs = self._extract_messages(state_update["messages_analyst"])
+                    if msgs:
+                        data["analyst_messages"] = msgs
+                        if node_name in ("initial_deep_query_node", "deep_query_node"):
+                            final_content = msgs[-1]["content"]
+
+                if "messages_ReAct" in state_update:
+                    msgs = self._extract_messages(state_update["messages_ReAct"])
+                    if msgs:
+                        data["react_messages"] = msgs
+
+                if "should_end" in state_update:
+                    data["should_end"] = state_update["should_end"]
+
+                yield {
+                    "type": "node_update",
+                    "node": node_name,
+                    "label": NODE_LABELS.get(node_name, node_name),
+                    "data": data,
+                }
+
+        if final_content:
+            with self.session_scope() as session:
+                record = models.AnalysisModel(user_id=user_id, query=query, analysis=final_content)
+                session.add(record)
+                session.flush()
+                session.refresh(record)
+                yield {
+                    "type": "complete",
+                    "data": {
+                        "analysis_id": record.analysis_id,
+                        "query": record.query,
+                        "analysis": record.analysis,
+                        "created_at": str(record.created_at),
+                    },
+                }
 
     def get_analysis(self, analysis_id: int) -> Dict:
         with self.session_scope() as session:
