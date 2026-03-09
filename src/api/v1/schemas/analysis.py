@@ -53,4 +53,17 @@ class Analysis(BaseModel):
 
 
 class AnalysisResponse(BaseModel):
-    analysis : str
+    analysis_id: int
+    query: str
+    analysis: str
+    created_at: str
+
+
+class AnalysisSummary(BaseModel):
+    analysis_id: int
+    query: str
+    created_at: str
+
+
+class AnalysisListResponse(BaseModel):
+    analyses: list[AnalysisSummary]

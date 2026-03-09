@@ -18,13 +18,16 @@ class AppUserModel(Base):
 
 
 class AnalysisModel(Base):
+    __tablename__ = "analyses"
+
     analysis_id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("appusers.user_id"), nullable=False)
 
     query = Column(Text)
     analysis = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
 
-    user = relationship("AppUserModel", backref="analysis")
+    user = relationship("AppUserModel", backref="analyses")
 
 
 

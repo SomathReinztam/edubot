@@ -54,17 +54,30 @@ class CrudHelper:
     
 
 
-    def new_user(self, name : str, email : str, password : str):
-                with self.session_scope() as session:
+    def new_user(self, name: str, email: str, password: str):
+        with self.session_scope() as session:
+            user_db = models.AppUserModel(name=name, email=email, password=password)
+            session.add(user_db)
+            session.flush()
 
-                    user_db = models.AppUserModel(
-                        name=name,
-                        email=email,
-                        password=password
-                    )
-                
-                    session.add(user_db)
-                    session.flush()
+    def get_user(self, user_id: int) -> Optional[Dict]:
+        with self.session_scope() as session:
+            user = session.query(models.AppUserModel).filter(
+                models.AppUserModel.user_id == user_id
+            ).first()
+            if not user:
+                raise schema.UserNotFoundError(f"Usuario {user_id} no encontrado")
+            return {"user_id": user.user_id, "name": user.name, "email": user.email}
+
+    def login(self, email: str, password: str) -> Dict:
+        with self.session_scope() as session:
+            user = session.query(models.AppUserModel).filter(
+                models.AppUserModel.email == email,
+                models.AppUserModel.password == password
+            ).first()
+            if not user:
+                raise schema.UserNotFoundError("Email o contraseña incorrectos")
+            return {"user_id": user.user_id, "name": user.name, "email": user.email}
     
 
     def _get_langchain_model(self, model_provider : schema.ModelProvider) -> BaseChatModel:
@@ -109,16 +122,57 @@ class CrudHelper:
         analysis = analysis.content
 
         with self.session_scope() as session:
-             analyst_db = models.AnalysisModel(
-                  user_id=user_id,
-                  query=query,
-                  analysis=analysis
-             )
-             session.add(analyst_db)
-             session.flush()
+            analyst_db = models.AnalysisModel(
+                user_id=user_id,
+                query=query,
+                analysis=analysis
+            )
+            session.add(analyst_db)
+            session.flush()
+            session.refresh(analyst_db)
+            return {
+                "analysis_id": analyst_db.analysis_id,
+                "query": analyst_db.query,
+                "analysis": analyst_db.analysis,
+                "created_at": str(analyst_db.created_at),
+            }
 
+    def get_analysis(self, analysis_id: int) -> Dict:
+        with self.session_scope() as session:
+            record = session.query(models.AnalysisModel).filter(
+                models.AnalysisModel.analysis_id == analysis_id
+            ).first()
+            if not record:
+                raise schema.DatabaseError(f"Análisis {analysis_id} no encontrado")
+            return {
+                "analysis_id": record.analysis_id,
+                "query": record.query,
+                "analysis": record.analysis,
+                "created_at": str(record.created_at),
+            }
 
-        return {"analysis":analysis}
+    def get_user_analyses(self, user_id: int) -> List[Dict]:
+        with self.session_scope() as session:
+            records = session.query(models.AnalysisModel).filter(
+                models.AnalysisModel.user_id == user_id
+            ).order_by(models.AnalysisModel.created_at.desc()).all()
+            return [
+                {
+                    "analysis_id": r.analysis_id,
+                    "query": r.query,
+                    "created_at": str(r.created_at),
+                }
+                for r in records
+            ]
+
+    def delete_analysis(self, analysis_id: int) -> None:
+        with self.session_scope() as session:
+            record = session.query(models.AnalysisModel).filter(
+                models.AnalysisModel.analysis_id == analysis_id
+            ).first()
+            if not record:
+                raise schema.DatabaseError(f"Análisis {analysis_id} no encontrado")
+            session.delete(record)
 
 
 
