@@ -15,6 +15,14 @@ EDUBOTDB_PORT=os.getenv("EDUBOTDB_PORT")
 EDUBOTDB_NAME=os.getenv("EDUBOTDB_NAME")
 
 
+# Credenciales de la base de datos de la app ----------------
+
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME = os.getenv("DB_NAME")
+
 # api keys ----------------
 
 GOOGLE_API_KEY=os.getenv("GOOGLE_API_KEY")
