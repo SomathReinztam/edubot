@@ -23,6 +23,7 @@ class AnalysisModel(Base):
 
     query = Column(Text)
     analysis = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
 
     user = relationship("AppUserModel", backref="analysis")
 
