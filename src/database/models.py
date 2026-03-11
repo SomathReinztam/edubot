@@ -18,6 +18,8 @@ class AppUserModel(Base):
 
 
 class AnalysisModel(Base):
+    __tablename__ = "edubot_analysis"
+
     analysis_id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("appusers.user_id"), nullable=False)
 
