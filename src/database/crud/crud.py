@@ -125,23 +125,26 @@ class CrudHelper:
         initial_state = {'messages_analyst':messages}
 
         # --- INICIO DEL STREAMING ---
+        prev_analyst_len = 0
         for event in analyst_agent.stream(initial_state, stream_mode="values"):
             final_state = event
-            msg = event['messages_analyst'][-1]
-            
-            # Preparamos el payload del evento
-            step_data = {"type": "reasoning", "role": "", "content": ""}
-            
-            if isinstance(msg, HumanMessage):
-                step_data["role"] = "Asistente del analista"
-                step_data["content"] = msg.content if isinstance(msg.content, str) else str(msg.content)
-            elif isinstance(msg, AIMessage):
-                step_data["role"] = "Analista"
-                # Usamos pretty_repr() u otra propiedad si quieres incluir llamadas a herramientas
-                step_data["content"] = msg.content if msg.content else "Procesando herramienta..."
+            current_analyst_len = len(event['messages_analyst'])
 
-            # YIELD: Enviamos el chunk de razonamiento al cliente en formato SSE (Server-Sent Event)
-            yield f"data: {json.dumps(step_data)}\n\n"
+            if current_analyst_len >= 3 and current_analyst_len > prev_analyst_len:
+                msg = event['messages_analyst'][-1]
+
+                step_data = {"type": "reasoning", "role": "", "content": ""}
+
+                if isinstance(msg, HumanMessage):
+                    step_data["role"] = "Asistente del analista"
+                    step_data["content"] = msg.content if isinstance(msg.content, str) else str(msg.content)
+                elif isinstance(msg, AIMessage):
+                    step_data["role"] = "Analista"
+                    step_data["content"] = msg.content if msg.content else "Procesando herramienta..."
+
+                yield f"data: {json.dumps(step_data)}\n\n"
+
+            prev_analyst_len = current_analyst_len
 
         # --- FIN DEL STREAMING: GUARDAR EN BD Y ENVIAR RESPUESTA FINAL ---
         messages_analyst = final_state['messages_analyst']
