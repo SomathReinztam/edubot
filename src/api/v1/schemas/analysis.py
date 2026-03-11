@@ -4,7 +4,7 @@ from typing import Literal, Optional, Union, Annotated
 
 class ModelProviderBase(BaseModel):
     temperature: float
-    api_key: str
+    api_key: Optional[str] = None
 
 
 class GoogleModel(ModelProviderBase):
@@ -15,7 +15,7 @@ class GoogleModel(ModelProviderBase):
         "gemini-2.5-pro",
         "gemini-3-flash-preview",
         "gemini-3.1-flash-lite-preview",
-        "gemini-3.1-pro-preview"
+        "gemini-3.1-pro-preview",
     ]
 
 
@@ -24,28 +24,24 @@ class GroqModels(ModelProviderBase):
     model: Literal[
         "llama-3.3-70b-versatile",
         "openai/gpt-oss-120b",
-        "moonshotai/kimi-k2-instruct-0905"
+        "moonshotai/kimi-k2-instruct-0905",
     ]
 
 
 class DeepSeekModels(ModelProviderBase):
     client: Literal["deepseek"]
-    model: Literal[
-        "deepseek-chat",
-        "deepseek-reasoner"
-    ]
+    model: Literal["deepseek-chat", "deepseek-reasoner"]
 
 
 ModelProvider = Annotated[
-    Union[GoogleModel, GroqModels, DeepSeekModels],
-    Field(discriminator="client")
+    Union[GoogleModel, GroqModels, DeepSeekModels], Field(discriminator="client")
 ]
 
 
 class Analysis(BaseModel):
     user_id: int
     query: str
-    top_n: int 
+    top_n: int
 
     model_analyst: ModelProvider
     model_querier: ModelProvider
@@ -53,4 +49,4 @@ class Analysis(BaseModel):
 
 
 class AnalysisResponse(BaseModel):
-    analysis : str
+    analysis: str

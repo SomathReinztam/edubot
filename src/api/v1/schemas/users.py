@@ -20,3 +20,14 @@ class UserResponse(BaseModel):
     user_id: int
     name: str
     email: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse  # Embed UserResponse
