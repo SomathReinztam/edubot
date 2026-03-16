@@ -57,21 +57,21 @@ class DiscordEchoSaverBot(discord.Client):
 
     async def perform_full_extraction(self, session):
         await self.save_guild_data(session)
-        #await self.save_user_data(session)
+        # await self.save_user_data(session)
         await self.save_channel_data(session)
-        await self.save_all_channel_messages(session)
+        # await self.save_all_channel_messages(session) # Comentado temporalmente
+        await self.save_all_channel_messages_no_user_check(session)
 
     async def perform_incremental_extraction(self, session):
         await self.save_guild_data(
             session
         )  # This method already handles incremental updates
-        await self.save_user_data(
-            session
-        )  # This method already handles incremental updates
+        # await self.save_user_data(session) # Comentado temporalmente por problemas con DiscordUser
         await self.save_channel_data(
             session
         )  # This method already handles incremental updates
-        await self.update_new_channel_messages(session)
+        # await self.update_new_channel_messages(session) # Comentado temporalmente
+        await self.update_new_channel_messages_no_user_check(session)
 
     async def save_guild_data(self, session):
         logging.info("\n📦 Guardando información de servidores:")
@@ -91,34 +91,34 @@ class DiscordEchoSaverBot(discord.Client):
                 )
         session.commit()
 
-    async def save_user_data(self, session):
-        logging.info("\n👤 Guardando información de usuarios:")
-        for guild in self.guilds:
-            logging.info(
-                f"  📝 Procesando miembros del servidor: {guild.name} ({guild.id})"
-            )
-            async for member in guild.fetch_members(limit=None):
-                existing_user = (
-                    session.query(models.DiscordUser)
-                    .filter_by(id=member.id, guild_id=guild.id)
-                    .first()
-                )
-                if not existing_user:
-                    discord_user_record = models.DiscordUser(
-                        id=member.id,
-                        name=member.display_name,
-                        guild_id=guild.id,
-                        joined_at=member.joined_at,
-                    )
-                    session.add(discord_user_record)
-                    logging.info(
-                        f"    ✅ Usuario '{member.display_name}' ({member.id}) del guild '{guild.name}' guardado."
-                    )
-                else:
-                    logging.info(
-                        f"    ⏩ Usuario '{member.display_name}' ({member.id}) del guild '{guild.name}' ya existe. Saltando."
-                    )
-            session.commit()
+    # async def save_user_data(self, session):
+    #     logging.info("\n👤 Guardando información de usuarios:")
+    #     for guild in self.guilds:
+    #         logging.info(
+    #             f"  📝 Procesando miembros del servidor: {guild.name} ({guild.id})"
+    #         )
+    #         async for member in guild.fetch_members(limit=None):
+    #             existing_user = (
+    #                 session.query(models.DiscordUser)
+    #                 .filter_by(id=member.id, guild_id=guild.id)
+    #                 .first()
+    #             )
+    #             if not existing_user:
+    #                 discord_user_record = models.DiscordUser(
+    #                     id=member.id,
+    #                     name=member.display_name,
+    #                     guild_id=guild.id,
+    #                     joined_at=member.joined_at,
+    #                 )
+    #                 session.add(discord_user_record)
+    #                 logging.info(
+    #                     f"    ✅ Usuario '{member.display_name}' ({member.id}) del guild '{guild.name}' guardado."
+    #                 )
+    #             else:
+    #                 logging.info(
+    #                     f"    ⏩ Usuario '{member.display_name}' ({member.id}) del guild '{guild.name}' ya existe. Saltando."
+    #                 )
+    #         session.commit()
 
     async def save_channel_data(self, session):
         logging.info("\n📺 Guardando información de canales:")
@@ -159,112 +159,7 @@ class DiscordEchoSaverBot(discord.Client):
                         )
             session.commit()
 
-    async def save_all_channel_messages(self, session):
-        logging.info("\n📜 Obteniendo historial de mensajes de todos los canales:")
-        for guild in self.guilds:
-            for channel in guild.channels:
-                if isinstance(channel, discord.TextChannel):
-                    logging.info(
-                        f"  📝 Procesando mensajes del canal: {channel.name} ({channel.id}) en el servidor {guild.name}"
-                    )
-                    await self._get_and_save_messages(session, channel)
-
-    async def update_new_channel_messages(self, session):
-        logging.info("\n📜 Actualizando nuevos mensajes de canales existentes:")
-        for guild in self.guilds:
-            for channel in guild.channels:
-                if isinstance(channel, discord.TextChannel):
-                    db_channel = (
-                        session.query(models.DiscordChannel)
-                        .filter_by(id=channel.id, guild_id=guild.id)
-                        .first()
-                    )
-                    if db_channel and db_channel.last_messages_at:
-                        logging.info(
-                            f"  📝 Procesando nuevos mensajes del canal: {channel.name} ({channel.id}) desde {db_channel.last_messages_at}"
-                        )
-                        await self._get_and_save_messages(
-                            session, channel, after=db_channel.last_messages_at
-                        )
-                    else:
-                        logging.info(
-                            f"  ⏩ Canal '{channel.name}' ({channel.id}) sin 'last_messages_at' o no encontrado. Realizando extracción completa de este canal."
-                        )
-                        await self._get_and_save_messages(session, channel)
-
-    async def _get_channels_by_ids(
-        self, guild: discord.Guild, channel_ids: list[int]
-    ) -> list[discord.TextChannel]:
-        channels = []
-        for chann_id in channel_ids:
-            channel = guild.get_channel(chann_id)
-            if not channel:
-                logging.warning(
-                    f"❌ Canal con ID '{chann_id}' no encontrado en el servidor '{guild.name}'. Saltando."
-                )
-                continue
-            if not isinstance(channel, discord.TextChannel):
-                logging.warning(
-                    f"❌ Canal con ID '{chann_id}' no es un canal de texto en el servidor '{guild.name}'. Saltando."
-                )
-                continue
-            channels.append(channel)
-        return channels
-
-    async def save_specific_channels_full_history(
-        self, session, guild_id: int, channel_ids: list[int]
-    ):
-        logging.info(
-            f"\n📜 Obteniendo historial completo de mensajes de canales específicos en el servidor {guild_id}:"
-        )
-        guild = self.get_guild(guild_id)
-        if not guild:
-            logging.error(
-                f"❌ Servidor con ID '{guild_id}' no encontrado. No se pueden extraer mensajes de canales específicos."
-            )
-            return
-
-        channels_to_process = await self._get_channels_by_ids(guild, channel_ids)
-        for channel in channels_to_process:
-            logging.info(
-                f"  📝 Procesando historial completo del canal: {channel.name} ({channel.id}) en el servidor {guild.name}"
-            )
-            await self._get_and_save_messages(session, channel)
-
-    async def update_specific_channels_new_messages(
-        self, session, guild_id: int, channel_ids: list[int]
-    ):
-        logging.info(
-            f"\n📜 Actualizando nuevos mensajes de canales específicos en el servidor {guild_id}:"
-        )
-        guild = self.get_guild(guild_id)
-        if not guild:
-            logging.error(
-                f"❌ Servidor con ID '{guild_id}' no encontrado. No se pueden extraer nuevos mensajes de canales específicos."
-            )
-            return
-
-        channels_to_process = await self._get_channels_by_ids(guild, channel_ids)
-        for channel in channels_to_process:
-            db_channel = (
-                session.query(models.DiscordChannel)
-                .filter_by(id=channel.id, guild_id=guild.id)
-                .first()
-            )
-            if db_channel and db_channel.last_messages_at:
-                logging.info(
-                    f"  📝 Procesando nuevos mensajes del canal: {channel.name} ({channel.id}) desde {db_channel.last_messages_at}"
-                )
-                await self._get_and_save_messages(
-                    session, channel, after=db_channel.last_messages_at
-                )
-            else:
-                logging.info(
-                    f"  ⏩ Canal '{channel.name}' ({channel.id}) sin 'last_messages_at' o no encontrado en la DB. Realizando extracción completa de este canal."
-                )
-                await self._get_and_save_messages(session, channel)
-
-    async def _get_and_save_messages(
+    async def _get_and_save_messages_no_user_check(
         self, session, channel: discord.TextChannel, after=None
     ):
         count = 0
@@ -288,7 +183,7 @@ class DiscordEchoSaverBot(discord.Client):
                     id=msg.id,
                     guild_id=channel.guild.id,
                     channel_id=channel.id,
-                    author_id=msg.author.id,
+                    author_id=msg.author.id,  # No user check here
                     content=msg.content if msg.content else None,
                     reply_to=msg.reference.message_id if msg.reference else None,
                     attachments=attachments if attachments else None,
@@ -336,6 +231,150 @@ class DiscordEchoSaverBot(discord.Client):
                 f"Error al obtener mensajes del canal '{channel.name}' ({channel.id}): {e}"
             )
             session.rollback()  # Rollback any partial commits for this channel
+
+    async def save_all_channel_messages_no_user_check(self, session):
+        logging.info(
+            "\n📜 Obteniendo historial de mensajes de todos los canales (sin verificación de usuario):"
+        )
+        for guild in self.guilds:
+            for channel in guild.channels:
+                if isinstance(channel, discord.TextChannel):
+                    logging.info(
+                        f"  📝 Procesando mensajes del canal: {channel.name} ({channel.id}) en el servidor {guild.name}"
+                    )
+                    await self._get_and_save_messages_no_user_check(session, channel)
+
+    async def update_new_channel_messages_no_user_check(self, session):
+        logging.info(
+            "\n📜 Actualizando nuevos mensajes de canales existentes (sin verificación de usuario):"
+        )
+        for guild in self.guilds:
+            for channel in guild.channels:
+                if isinstance(channel, discord.TextChannel):
+                    db_channel = (
+                        session.query(models.DiscordChannel)
+                        .filter_by(id=channel.id, guild_id=guild.id)
+                        .first()
+                    )
+                    if db_channel and db_channel.last_messages_at:
+                        logging.info(
+                            f"  📝 Procesando nuevos mensajes del canal: {channel.name} ({channel.id}) desde {db_channel.last_messages_at}"
+                        )
+                        await self._get_and_save_messages_no_user_check(
+                            session, channel, after=db_channel.last_messages_at
+                        )
+                    else:
+                        logging.info(
+                            f"  ⏩ Canal '{channel.name}' ({channel.id}) sin 'last_messages_at' o no encontrado en la DB. Realizando extracción completa de este canal."
+                        )
+                        await self._get_and_save_messages_no_user_check(
+                            session, channel
+                        )
+
+    async def save_all_channel_messages(self, session):
+        logging.info("\n📜 Obteniendo historial de mensajes de todos los canales:")
+        for guild in self.guilds:
+            for channel in guild.channels:
+                if isinstance(channel, discord.TextChannel):
+                    logging.info(
+                        f"  📝 Procesando mensajes del canal: {channel.name} ({channel.id}) en el servidor {guild.name}"
+                    )
+        #             await self._get_and_save_messages(session, channel) # Comentado temporalmente
+
+    async def update_new_channel_messages(self, session):
+        logging.info("\n📜 Actualizando nuevos mensajes de canales existentes:")
+        for guild in self.guilds:
+            for channel in guild.channels:
+                if isinstance(channel, discord.TextChannel):
+                    db_channel = (
+                        session.query(models.DiscordChannel)
+                        .filter_by(id=channel.id, guild_id=guild.id)
+                        .first()
+                    )
+                    if db_channel and db_channel.last_messages_at:
+                        logging.info(
+                            f"  📝 Procesando nuevos mensajes del canal: {channel.name} ({channel.id}) desde {db_channel.last_messages_at}"
+                        )
+                        # await self._get_and_save_messages( # Comentado temporalmente
+                        #     session, channel, after=db_channel.last_messages_at
+                        # )
+                    else:
+                        logging.info(
+                            f"  ⏩ Canal '{channel.name}' ({channel.id}) sin 'last_messages_at' o no encontrado. Realizando extracción completa de este canal."
+                        )
+                        # await self._get_and_save_messages(session, channel) # Comentado temporalmente
+
+    async def _get_channels_by_ids(
+        self, guild: discord.Guild, channel_ids: list[int]
+    ) -> list[discord.TextChannel]:
+        channels = []
+        for chann_id in channel_ids:
+            channel = guild.get_channel(chann_id)
+            if not channel:
+                logging.warning(
+                    f"❌ Canal con ID '{chann_id}' no encontrado en el servidor '{guild.name}'. Saltando."
+                )
+                continue
+            if not isinstance(channel, discord.TextChannel):
+                logging.warning(
+                    f"❌ Canal con ID '{chann_id}' no es un canal de texto en el servidor '{guild.name}'. Saltando."
+                )
+                continue
+            channels.append(channel)
+        return channels
+
+    async def save_specific_channels_full_history(
+        self, session, guild_id: int, channel_ids: list[int]
+    ):
+        logging.info(
+            f"\n📜 Obteniendo historial completo de mensajes de canales específicos en el servidor {guild_id}:"
+        )
+        guild = self.get_guild(guild_id)
+        if not guild:
+            logging.error(
+                f"❌ Servidor con ID '{guild_id}' no encontrado. No se pueden extraer mensajes de canales específicos."
+            )
+            return
+
+        channels_to_process = await self._get_channels_by_ids(guild, channel_ids)
+        for channel in channels_to_process:
+            logging.info(
+                f"  📝 Procesando historial completo del canal: {channel.name} ({channel.id}) en el servidor {guild.name}"
+            )
+            await self._get_and_save_messages_no_user_check(session, channel)
+
+    async def update_specific_channels_new_messages(
+        self, session, guild_id: int, channel_ids: list[int]
+    ):
+        logging.info(
+            f"\n📜 Actualizando nuevos mensajes de canales específicos en el servidor {guild_id}:"
+        )
+        guild = self.get_guild(guild_id)
+        if not guild:
+            logging.error(
+                f"❌ Servidor con ID '{guild_id}' no encontrado. No se pueden extraer nuevos mensajes de canales específicos."
+            )
+            return
+
+        channels_to_process = await self._get_channels_by_ids(guild, channel_ids)
+        for channel in channels_to_process:
+            db_channel = (
+                session.query(models.DiscordChannel)
+                .filter_by(id=channel.id, guild_id=guild.id)
+                .first()
+            )
+            if db_channel and db_channel.last_messages_at:
+                logging.info(
+                    f"  📝 Procesando nuevos mensajes del canal: {channel.name} ({channel.id}) desde {db_channel.last_messages_at}"
+                )
+                await self._get_and_save_messages_no_user_check(
+                    session, channel, after=db_channel.last_messages_at
+                )
+            else:
+                logging.info(
+                    f"  ⏩ Canal '{channel.name}' ({channel.id}) sin 'last_messages_at' o no encontrado en la DB. Realizando extracción completa de este canal."
+                )
+                await self._get_and_save_messages_no_user_check(session, channel)
 
 
 if __name__ == "__main__":
