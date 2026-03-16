@@ -1,7 +1,14 @@
-
-
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, BigInteger, String, DateTime, Text, func, JSON
+from sqlalchemy import (
+    Column,
+    BigInteger,
+    String,
+    DateTime,
+    Text,
+    func,
+    JSON,
+    ForeignKey,
+)
 
 
 class Base(DeclarativeBase):
@@ -36,55 +43,46 @@ class Base(DeclarativeBase):
 #     inserted_at = Column(DateTime, server_default=func.now())
 
 
-
-
-
 class DiscordGuild(Base):
-    __tablename__="discord_servers"
+    __tablename__ = "discord_servers"
 
     id = Column(BigInteger, primary_key=True)
     name = Column(String)
-    create_at = Column(DateTime, index=True) # fecha de creacion del server
+    create_at = Column(DateTime, index=True)  # fecha de creacion del server
     inserted_at = Column(DateTime, server_default=func.now())
-
 
 
 class DiscordUser(Base):
-    __tablename__="discord_users"
+    __tablename__ = "discord_users"
 
     id = Column(BigInteger, primary_key=True)
     name = Column(String)
-    guild_id = Column(BigInteger)
-    joined_at = Column(DateTime, index=True) # fecha en la que se unio al server
+    guild_id = Column(BigInteger, ForeignKey("discord_servers.id"))
+    joined_at = Column(DateTime, index=True)  # fecha en la que se unio al server
     inserted_at = Column(DateTime, server_default=func.now())
-
 
 
 class DiscordChannel(Base):
-    __tablename__="discord_channels"
+    __tablename__ = "discord_channels"
 
     id = Column(BigInteger, primary_key=True)
-    guild_id = Column(BigInteger)
+    guild_id = Column(BigInteger, ForeignKey("discord_servers.id"))
     name = Column(String)
-    parent_channel_id = Column(BigInteger) # Si es un hilo, cual es el canal del hilo
+    parent_channel_id = Column(BigInteger)  # Si es un hilo, cual es el canal del hilo
     create_at = Column(DateTime, index=True)
-    last_messages_at = Column(DateTime, index=True) # Fecha del ultimo mensaje
+    last_messages_at = Column(DateTime, index=True)  # Fecha del ultimo mensaje
     inserted_at = Column(DateTime, server_default=func.now())
-
 
 
 class DiscordMessage(Base):
     __tablename__ = "discord_messages"
 
     id = Column(BigInteger, unique=True, index=True, primary_key=True)
-    guild_id = Column(BigInteger, index=True)
-    channel_id = Column(BigInteger, index=True)
-    author_id = Column(BigInteger, index=True)
+    guild_id = Column(BigInteger, ForeignKey("discord_servers.id"), index=True)
+    channel_id = Column(BigInteger, ForeignKey("discord_channels.id"), index=True)
+    author_id = Column(BigInteger, ForeignKey("discord_users.id"), index=True)
     content = Column(Text, nullable=True)
-    reply_to = Column(BigInteger)
+    reply_to = Column(BigInteger, ForeignKey("discord_messages.id"), nullable=True)
     attachments = Column(JSON)
     message_create_at = Column(DateTime, index=True)
     inserted_at = Column(DateTime, server_default=func.now())
-
-
-
