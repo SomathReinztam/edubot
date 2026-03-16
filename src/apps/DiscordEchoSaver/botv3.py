@@ -57,7 +57,7 @@ class DiscordEchoSaverBot(discord.Client):
 
     async def perform_full_extraction(self, session):
         await self.save_guild_data(session)
-        await self.save_user_data(session)
+        #await self.save_user_data(session)
         await self.save_channel_data(session)
         await self.save_all_channel_messages(session)
 
@@ -342,7 +342,7 @@ if __name__ == "__main__":
     intents = discord.Intents.default()
     intents.message_content = True
     intents.guilds = True
-    intents.members = True
+    # intents.members = True  TODO: aparentemente el token no tiene los permisos necesarios, esto genera un error
     intents.messages = True
 
     # GUILD_ID y CHANNEL_ID are no longer directly used for full/incremental extraction logic,
@@ -355,3 +355,8 @@ if __name__ == "__main__":
         bot.run(settings.DISCORD_BOT_TOKEN)
     else:
         logging.error("❌ DISCORD_BOT_TOKEN no está configurado.")
+
+"""
+python3 -m src.apps.DiscordEchoSaver.botv3
+
+"""

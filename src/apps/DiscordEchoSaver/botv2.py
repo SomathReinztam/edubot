@@ -25,13 +25,13 @@ class DiscordEchoSaverBot(discord.Client):
         session = Session()
 
         # await self.save_guild_data(session)
-        # await self.save_user_data(session)
+        await self.save_user_data(session)
         # await self.save_channel_data(session)
 
-        if self.guild_id and self.channel_id:
-            await self.get_discord_channel_history(
-                session, self.guild_id, self.channel_id
-            )
+        # if self.guild_id and self.channel_id:
+        #     await self.get_discord_channel_history(
+        #         session, self.guild_id, self.channel_id
+        #     )
 
         session.close()  # Close session when done
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     intents = discord.Intents.default()
     intents.message_content = True
     intents.guilds = True
-    intents.members = True  # Necesario para fetch_members
+    # intents.members = True  # Necesario para fetch_members TODO: aparentemente el token no tiene los permisos necesarios, esto genera un error
     intents.messages = True
 
     # Puedes dejar GUILD_ID y CHANNEL_ID como None para solo guardar la info de los servers, usuarios y canales

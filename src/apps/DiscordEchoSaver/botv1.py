@@ -16,9 +16,9 @@ class DiscordEchoSaverBot(discord.Client):
     async def on_ready(self):
         print(f"🤖 Conectado como {self.user}")
         # await self.list_all_users()
-        # await self.list_guilds()
+        await self.list_guilds()
         # await self.list_channels(self.guild_id)
-        await self.get_discord_channel_history(self.guild_id, self.channel_id)
+        # await self.get_discord_channel_history(self.guild_id, self.channel_id)
 
 
 
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     intents.message_content = True
     intents.guilds = True
     intents.messages = True
-    intents.members = True
+    #intents.members = True TODO: aparentemente el token no tiene los permisos necesarios, esto genera un error
 
 
     GUILD_ID = 1308885706621452369 # Sun Factory
