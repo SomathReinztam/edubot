@@ -15,33 +15,6 @@ class Base(DeclarativeBase):
     pass
 
 
-# class DiscordMessage(Base):
-#     __tablename__ = "discord_messages"
-
-#     id = Column(BigInteger, primary_key=True, autoincrement=True)
-
-#     discord_message_id = Column(BigInteger, unique=True, index=True)
-
-#     guild_id = Column(BigInteger, index=True)
-#     guild_name = Column(String)
-
-#     channel_id = Column(BigInteger, index=True)
-#     channel_name = Column(String)
-
-#     author_id = Column(BigInteger, index=True)
-#     author_name = Column(String)
-
-#     content = Column(Text, nullable=True)
-
-#     reply_to = Column(BigInteger)
-
-#     attachments = Column(JSON)
-
-#     message_create_at = Column(DateTime, index=True)
-#     edited_at = Column(DateTime)
-
-#     inserted_at = Column(DateTime, server_default=func.now())
-
 
 class DiscordGuild(Base):
     __tablename__ = "discord_servers"
@@ -52,14 +25,14 @@ class DiscordGuild(Base):
     inserted_at = Column(DateTime, server_default=func.now())
 
 
-class DiscordUser(Base):
-    __tablename__ = "discord_users"
+# class DiscordUser(Base):
+#     __tablename__ = "discord_users"
 
-    id = Column(BigInteger, primary_key=True)
-    name = Column(String)
-    guild_id = Column(BigInteger, ForeignKey("discord_servers.id"))
-    joined_at = Column(DateTime, index=True)  # fecha en la que se unio al server
-    inserted_at = Column(DateTime, server_default=func.now())
+#     id = Column(BigInteger, primary_key=True)
+#     name = Column(String)
+#     guild_id = Column(BigInteger, ForeignKey("discord_servers.id"))
+#     joined_at = Column(DateTime, index=True)  # fecha en la que se unio al server
+#     inserted_at = Column(DateTime, server_default=func.now())
 
 
 class DiscordChannel(Base):
@@ -80,7 +53,8 @@ class DiscordMessage(Base):
     id = Column(BigInteger, unique=True, index=True, primary_key=True)
     guild_id = Column(BigInteger, ForeignKey("discord_servers.id"), index=True)
     channel_id = Column(BigInteger, ForeignKey("discord_channels.id"), index=True)
-    author_id = Column(BigInteger, ForeignKey("discord_users.id"), index=True)
+    # author_id = Column(BigInteger, ForeignKey("discord_users.id"), index=True)
+    author_id = Column(BigInteger, index=True)
     content = Column(Text, nullable=True)
     reply_to = Column(BigInteger, ForeignKey("discord_messages.id"), nullable=True)
     attachments = Column(JSON)
