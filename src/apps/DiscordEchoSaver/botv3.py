@@ -185,7 +185,14 @@ class DiscordEchoSaverBot(discord.Client):
                     channel_id=channel.id,
                     author_id=msg.author.id,  # No user check here
                     content=msg.content if msg.content else None,
-                    reply_to=msg.reference.message_id if msg.reference else None,
+                    reply_to=(
+                        msg.reference.message_id
+                        if msg.reference
+                        and session.query(models.DiscordMessage.id)
+                        .filter_by(id=msg.reference.message_id)
+                        .first()
+                        else None
+                    ),
                     attachments=attachments if attachments else None,
                     message_create_at=msg.created_at,
                 )
